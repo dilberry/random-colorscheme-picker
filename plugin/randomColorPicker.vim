@@ -2,152 +2,108 @@
 " the extent permitted by applicable law. You can redistribute it
 " and/or modify it under the terms of the Do What The Fuck You Want
 " To Public License, Version 2, as published by Sam Hocevar. See
-" http://www.wtfpl.net/txt/copying/ for more details. */
-"
-" ==ABOUT==
-" Power VIM Users like us have already wasted tons of time to choose
-" our favorite colorschemes, and may still not be satisfied with the
-" current colorschemes. So I wrote this plugin to help us out, to
-" meet the perfect colorsheme that we are `DESTINED` to be with.
-" just like your lovely girlfriends/wifves:)
-" Written by sunus Lee
-" sunus.the.dev@gmail.com
+" http://sam.zoy.org/wtfpl/copying for more details. */
 
-function! GetOS()
-    if has('unix')
-        return 'linux'
-    elseif has('win16') || has('win32') || has('win64')
-        return 'win'
-    endif
+let g:colorscheme_file_path=""
+let g:colorscheme_file=""
+let rnd = localtime() % 0x10000
+
+function! s:InitCS()
+	if exists("g:CSLOVES_STR")
+		let g:csloves=eval(g:CSLOVES_STR)
+	else
+		let g:csloves=[]
+	endif
+	if exists("g:CSHATES_STR")
+		let g:cshates=eval(g:CSHATES_STR)
+	else
+		let g:cshates=[]
+	endif
+	call s:PickCS()
+	if (exists('g:loaded_airline') && g:loaded_airline)
+		" This initialisation causes an error in airlines colourscheme
+		" change detection
+		call airline#load_theme()
+	endif
 endfunction
 
-function! GetRAND()
-    if g:os == 'linux'
-        return system("echo $RANDOM")
-    elseif g:os == 'win'
-        return system("echo %RANDOM%")
-    endif
+function! s:ExitCS()
+	if exists("g:csloves")
+		let g:CSLOVES_STR=string(g:csloves)
+	else
+		unlet! g:CSLOVES_STR
+	endif
+	if exists("g:cshates")
+		let g:CSHATES_STR=string(g:cshates)
+	else
+		unlet! g:CSHATES_STR
+	endif
 endfunction
 
-let g:os=GetOS()
+function! s:PickCS()
+	if len(g:csloves) > 0
+		let g:colorscheme_file=g:csloves[0]
+		call s:ApplyCS()
+		return
+	endif
 
-if g:os == 'linux'
-    let g:plugin_path=fnamemodify(resolve(expand('<sfile>:p')), ':h')
-    let g:slash='/'
-    let g:love_path=g:plugin_path.'/.love'
-    let g:hate_path=g:plugin_path.'/.hate'
-elseif g:os == 'win'
-    let g:plugin_path=$HOME.'/vimfiles/plugin'
-    let g:slash='\'
-    let g:love_path=g:plugin_path.'\love.txt'
-    let g:hate_path=g:plugin_path.'\hate.txt'
-endif
+	let arr=split(globpath(&rtp, 'colors/*.vim'), "\n")
 
-
-if !exists('g:colorscheme_user_path')
-  let g:colorscheme_user_path = ''
-end
-let g:colorscheme_file_path=''
-let g:colorscheme_file=''
-let g:total_colorschemes = 0
-
-function! Picker()
-    " Fetch the runtime path and search for 
-    " all the color files
-    let colorscheme_dirs = []
-    for i in split(&runtimepath, ',')
-        if !empty(glob(i.'/colors'))
-            call add(colorscheme_dirs, i.'/colors')
-        endif
-    endfor
-
-    let g:all_colorschemes=[]
-    for colorsheme_dir in colorscheme_dirs
-        let colorschemes=glob(colorsheme_dir.'/*.vim')
-        let g:all_colorschemes+=split(colorschemes, '\n')
-    endfor
-
-    let arr=[]
-    for colorscheme_dir in colorscheme_dirs
-        let colorschemes=glob(colorscheme_dir.'/*.vim')
-        let arr+=split(colorschemes, '\n')
-    endfor
-    let g:total_colorschemes = len(arr)
-    let hates=[]
-    let r=findfile(g:hate_path)
-    if r != ''
-        let hates=readfile(g:hate_path)
-    endif
-    let r=findfile(g:love_path)
-    if r != ''
-        let loves=readfile(g:love_path)
-        if len(loves) > 0
-            let g:colorscheme_file=loves[0]
-            call ApplyCS()
-            return
-        endif
-    endif
-    while 1
-        let rand=GetRAND()
-        let rand=rand%len(arr)
-        let g:colorscheme_file_path=arr[rand]
-        if index(hates, g:colorscheme_file_path) == -1
-            break
-        endif
-    endwhile
-    " colorscheme is /path/to/colorscheme_file.vim
-    " convert to colorscheme_file
-    let g:colorscheme_file=split(g:colorscheme_file_path, g:slash)[-1][:-5]
-    call ApplyCS()
+	while 1
+		let rand=s:ChooseRandomCS(len(arr))
+		let g:colorscheme_file_path=arr[rand]
+		let g:colorscheme_file=split(g:colorscheme_file_path, "\\")[-1][:-5]
+		if index(g:cshates, g:colorscheme_file) == -1
+			break
+		endif
+	endwhile
+	" colorscheme is /path/to/colorscheme_file.vim
+	" convert to colorscheme_file
+	call s:ApplyCS()
 endfunction
 
-function! ApplyCS()
-    let cmd='colorscheme '.g:colorscheme_file
-    execute cmd
+function! s:RandomCS()
+	let g:rnd = (g:rnd * 31421 + 6927) % 0x10000
+	return g:rnd
+endfun
+
+function! s:ChooseRandomCS(n) " 0 n within
+	return (s:RandomCS() * a:n) / 0x10000
+endfun
+
+function! s:ApplyCS()
+	let cmd="colorscheme ".g:colorscheme_file
+	silent execute cmd
+	redrawstatus
+	call s:ShowCS()
 endfunction
 
-function! LoveCS()
-    execute writefile([g:colorscheme_file], g:love_path)
+function! s:LoveCS()
+	call add(g:csloves, g:colorscheme_file)
 endfunction
 
-function! HateCS()
-    call delete(g:love_path)
-    let r=findfile(g:hate_path)
-    if r != ''
-        let hates=readfile(g:hate_path)
-    else
-        let hates=[]
-    endif
-    if len(hates) + 1 == g:total_colorschemes
-        redrawstatus
-  echo "She is the last one you got, Can't hate it anymore, or :Back first."
-    else
-        call add(hates, g:colorscheme_file_path)
-        call writefile(hates, g:hate_path)
-        call PickAndShow()
-    endif
+function! s:HateCS()
+	let g:csloves=[]
+	call add(g:cshates, g:colorscheme_file)
+	call s:PickCS()
 endfunction
 
-function! BackCS()
-    execute writefile([], g:hate_path)
-    redrawstatus
-    echo "you've got all the previously hated colorschemes back"
+function! s:BackCS()
+	let g:cshates=[]
+	redrawstatus
+	echo "you've got all the previously hated colorschemes back"
 endfunction
 
-function! ShowCS()
-    redrawstatus
-    echo 'using colorscheme: '.g:colorscheme_file
+function! s:ShowCS()
+	echo "using colorscheme: ".g:colorscheme_file
 endfunction
 
-function! PickAndShow()
-  call Picker()
-  call ShowCS()
-endfunction
+set vi^=!
+autocmd VimEnter * call s:InitCS()
+autocmd VimLeavePre * call s:ExitCS()
 
-call Picker()
-autocmd VimEnter * echo 'using colorscheme: '.g:colorscheme_file
-command! Love call LoveCS()
-command! Hate call HateCS()
-command! CS call ShowCS()
-command! Back call BackCS()
-command! CSnext call PickAndShow()
+command! LoveCS call s:LoveCS()
+command! HateCS call s:HateCS()
+command! ShowCS call s:ShowCS()
+command! PickCS call s:PickCS()
+command! BackCS call s:BackCS()
