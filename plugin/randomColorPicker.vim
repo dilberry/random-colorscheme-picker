@@ -20,10 +20,10 @@ function! s:InitCS()
 		let g:cshates=[]
 	endif
 	call s:PickCS()
-	if (exists('g:loaded_airline') && g:loaded_airline)
+	if (exists('g:loaded_lightline') && g:loaded_lightline)
 		" This initialisation causes an error in airlines colourscheme
 		" change detection
-		call airline#load_theme()
+		call lightline#colorscheme()
 	endif
 endfunction
 
